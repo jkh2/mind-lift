@@ -282,21 +282,20 @@
       setProgress(100,'Done');
     }
 
-    // Self tests
-    function runSelfTests(){
-      const out=[]; const pass=n=>out.push('✅ '+n); const fail=(n,e)=>out.push('❌ '+n+' — '+(e?.message||e));
-      try{ const raw=JSON.stringify([{title:'t1',messages:[{role:'user',content:'hi'},{role:'assistant',content:'yo'}]},{title:'t2',messages:[{role:'user',content:'x'}]}]); const r=normalizeExport(raw); if(r.conversations.length===2&&r.totalMessages===3) pass('array shape parses'); else throw Error('counts'); }catch(e){ fail('array shape parses',e);} 
-      try{ const raw=JSON.stringify([{title:'map1',mapping:{a:{id:'a',create_time:1,message:{author:{role:'user'},content:{parts:['U1']},create_time:1}},b:{id:'b',create_time:2,message:{author:{role:'assistant'},content:{parts:['A1']},create_time:2}}}}]); const r=normalizeExport(raw); if(r.conversations.length===1&&r.totalMessages===2) pass('mapping shape parses'); else throw Error('counts'); }catch(e){ fail('mapping shape parses',e);} 
-      try{ let threw=false; try{ normalizeExport('{not json}'); }catch(_){ threw=true; } if(threw) pass('invalid JSON rejected'); else throw Error('no throw'); }catch(e){ fail('invalid JSON rejected',e);} 
-      (async()=>{ try{ const msgs=[{role:'user',content:'a'},{role:'assistant',content:'b'},{role:'user',content:'a'}]; const d=await dedupeMessages(msgs); if(d.length===2) pass('dedupe role+content'); else throw Error('len'); }catch(e){ fail('dedupe role+content',e);} 
-        // Zep JSON export shape
-        try{ const demoPrep=[{title:'t',tags:['k:1'],messages:[{role:'user',content:'x'}]}]; const j=makeZepJSON(demoPrep,'pfx'); const obj=JSON.parse(j); if(Array.isArray(obj.sessions)&&obj.sessions[0].session_id==='pfx:1'&&obj.kind==='zep.sessions') pass('zep json shape'); else throw Error('bad shape'); }catch(e){ fail('zep json shape',e);} 
-        // Supabase JSON export shape
-        try{ const demoPrep=[{title:'t',tags:['k:1'],messages:[{role:'user',content:'x',created:1000}]}]; const j=makeSupabaseJSON(demoPrep); const obj=JSON.parse(j); if(Array.isArray(obj.conversations)&&Array.isArray(obj.messages)&&obj.kind==='supabase.bulk') pass('supabase json shape'); else throw Error('bad shape'); }catch(e){ fail('supabase json shape',e);} 
-        const log=document.getElementById('log'); log.textContent = out.join('\n'); })();
-    }
-
     window.addEventListener('DOMContentLoaded',()=>{
+      document.getElementById('zip').addEventListener('change', e=>{ /* optional: allow auto-start on change */ });
+      document.getElementById('genJSON').addEventListener('click', downloadPlatformJSON);
+      document.getElementById('processBtn').addEventListener('click', ()=>{
+        const f=document.getElementById('zip').files?.[0];
+        if(!f){ alert('Choose your OpenAI export .zip first.'); return; }
+        onFileChosen(f);
+      });
+      document.getElementById('prefix').addEventListener('input',()=>{ if(window.__prepared) renderSummary(window.__prepared, document.getElementById('prefix').value||'orion_master'); });
+    });
+  </script>
+</head>
+<body>
+  <header class="hero">('DOMContentLoaded',()=>{
       document.getElementById('zip').addEventListener('change', e=>{ const f=e.target.files?.[0]; if(f) onFileChosen(f); });
       document.getElementById('genJSON').addEventListener('click', downloadPlatformJSON);
       document.getElementById('selftest').addEventListener('click', runSelfTests);
@@ -331,8 +330,8 @@
         </div>
         <p class="muted" style="margin-top:10px">We parse <code>conversations.json</code>, dedupe, tag, and serialize to a <strong>single JSON file</strong> for the chosen platform.</p>
         <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap">
-          <button id="genJSON" class="btn" title="Download platform JSON payload" disabled>Download JSON</button>
-          <button id="selftest" class="btn secondary" title="Run in‑page tests">Run Self Tests</button>
+          <button id="processBtn" class="btn" title="Upload & process your export">Upload & Process</button>
+          <button id="genJSON" class="btn secondary" title="Download platform JSON payload" disabled>Download JSON</button>
         </div>
       </section>
 

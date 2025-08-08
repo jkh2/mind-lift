@@ -26,7 +26,7 @@ MindLift is a simple, browser-based tool that transforms your OpenAI ChatGPT exp
    - Wait for the email, then download the `.zip` file.
 
 2. **Open MindLift**  
-   - Visit: [https://YOUR-GITHUB-USERNAME.github.io/mindlift/](https://YOUR-GITHUB-USERNAME.github.io/mindlift/)  
+   - Visit: [https://jkh2.github.io/mindlift/](https://YOUR-GITHUB-USERNAME.github.io/mindlift/)  
    - *(Replace `YOUR-GITHUB-USERNAME` with your GitHub username)*
 
 3. **Select your target platform**  

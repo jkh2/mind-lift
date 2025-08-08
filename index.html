@@ -23,28 +23,19 @@
       font:16px/1.5 Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       overflow-y:overlay;
     }
-    /* Subtle animated glow */
     @keyframes glowShift { 0%{filter:hue-rotate(0deg)} 100%{filter:hue-rotate(360deg)} }
-
-    .hero{
-      padding:56px 20px 36px;
-      text-align:center;
-    }
+    .hero{ padding:56px 20px 36px; text-align:center; }
     .brand{
       font-size: clamp(40px, 6vw, 72px);
-      font-weight: 900;
-      letter-spacing:.4px;
-      margin:0;
+      font-weight: 900; letter-spacing:.4px; margin:0;
       text-shadow: 0 0 24px rgba(0,240,255,.6), 0 0 44px rgba(255,0,229,.35);
       animation: glowShift 14s linear infinite;
     }
     .tag{ color:var(--muted); margin:8px 0 0; font-size: clamp(14px, 2vw, 18px); }
     .credit{ color:var(--muted); font-size: 13px; margin-top: 6px; }
-
     .wrap{ max-width:1280px; margin:0 auto; padding:0 24px 40px; }
     .grid{ display:grid; grid-template-columns: 2fr 1fr 1fr; gap:18px; }
     @media (max-width: 980px){ .grid{ grid-template-columns:1fr; } }
-
     .card{
       background:linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0));
       border:1px solid rgba(255,255,255,.1);
@@ -52,7 +43,6 @@
       box-shadow: 0 0 0 1px rgba(255,255,255,.05), 0 0 24px rgba(0,240,255,.12), inset 0 0 28px rgba(255,0,229,.05);
       backdrop-filter: blur(8px);
     }
-
     label{ display:block; font-size:12px; color:var(--muted); margin-bottom:8px; }
     input[type="text"], input[type="file"], select{
       width:100%; color:var(--text); background:var(--panel);
@@ -61,7 +51,6 @@
       font-size:15px;
     }
     input[type="file"]{ padding:12px; }
-
     .btn{
       appearance:none; border:0; cursor:pointer; padding:14px 18px; border-radius:14px;
       font-weight:800; letter-spacing:.3px; color:#041015; font-size:15px;
@@ -72,25 +61,26 @@
     .btn[disabled]{ opacity:.55; cursor:not-allowed; }
     .btn:hover{ filter: brightness(1.05); box-shadow: 0 0 18px var(--neon), 0 0 40px var(--neon-2);} 
     .btn:active{ transform: translateY(1px); }
-    .btn.secondary{ background: transparent; color: var(--text); border:1px solid var(--neon);
-      box-shadow: inset 0 0 14px rgba(0,240,255,0.25), 0 0 24px rgba(0,240,255,0.15);} 
-
+    .btn.secondary{
+      background: transparent; color: var(--text); border:1px solid var(--neon);
+      box-shadow: inset 0 0 14px rgba(0,240,255,0.25), 0 0 24px rgba(0,240,255,0.15);
+    }
     .muted{ color:var(--muted) }
-
-    .log{ background:#080a10; border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:14px; color:#b9c3ff;
-      overflow:auto; max-height:260px; box-shadow: inset 0 0 28px rgba(0,240,255,.06); white-space:pre-wrap }
-
-    /* Big progress bar */
+    .log{
+      background:#080a10; border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:14px; color:#b9c3ff;
+      overflow:auto; max-height:260px; box-shadow: inset 0 0 28px rgba(0,240,255,.06); white-space:pre-wrap
+    }
     .progress{ height:14px; background:#0e1220; border-radius:999px; overflow:hidden; border:1px solid rgba(255,255,255,.1); }
-    .progress > span{ display:block; height:100%; width:0%;
+    .progress > span{
+      display:block; height:100%; width:0%;
       background:linear-gradient(90deg,var(--accent),var(--neon));
       box-shadow: 0 0 18px var(--accent), 0 0 24px var(--neon);
-      transition: width .25s ease; }
-
+      transition: width .25s ease;
+    }
     .pill{ display:inline-block; padding:4px 10px; border:1px solid rgba(255,255,255,.15); border-radius:999px; font-size:12px; }
   </style>
   <script>
-    // ==== MetaMask/Web3 muzzle (sandbox guard) ====
+    // Sandbox guard for MetaMask/Web3
     (function(){
       if (typeof window === 'undefined') return;
       try {
@@ -98,21 +88,19 @@
         muzzle(window,'ethereum'); muzzle(globalThis,'ethereum'); muzzle(window,'web3');
         window.addEventListener('ethereum#initialized', e=>e?.stopImmediatePropagation?.(), true);
         window.addEventListener('message', (e)=>{ const s=String(e?.data?.type||e?.data||'').toLowerCase(); if(s.includes('metamask')||s.includes('ethereum')) e.stopImmediatePropagation?.(); }, true);
-        window.addEventListener('unhandledrejection', e=>{ const m=String(e?.reason||''); if(/MetaMask|Failed to connect to MetaMask/i.test(m)){ e.preventDefault?.(); console.warn('MetaMask suppressed:', m);} });
-        window.addEventListener('error', e=>{ const m=String(e?.message||''); if(/MetaMask|ethereum/i.test(m)){ e.preventDefault?.(); e.stopImmediatePropagation?.(); console.warn('MetaMask error suppressed:', m);} }, true);
-      } catch(err){ console.warn('sandboxGuard skipped:', err); }
+        window.addEventListener('unhandledrejection', e=>{ const m=String(e?.reason||''); if(/MetaMask|Failed to connect to MetaMask/i.test(m)){ e.preventDefault?.(); } });
+        window.addEventListener('error', e=>{ const m=String(e?.message||''); if(/MetaMask|ethereum/i.test(m)){ e.preventDefault?.(); e.stopImmediatePropagation?.(); } }, true);
+      } catch(_) {}
     })();
 
-    // ==== SHA-256 (browser) ====
+    // Hash
     async function sha256(str){
       const enc=new TextEncoder();
-      const algo = (crypto?.subtle && crypto.subtle.digest) ? crypto.subtle : null;
-      if (!algo) throw new Error('WebCrypto unavailable for hashing');
       const buf=await crypto.subtle.digest('SHA-256', enc.encode(str));
       return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
     }
 
-    // ==== Parsing helpers ====
+    // Parse export
     function extractFromMapping(mapping){
       const out=[]; if(!mapping||typeof mapping!=='object') return out;
       const nodes=Object.values(mapping).sort((a,b)=>(a?.create_time||0)-(b?.create_time||0));
@@ -143,7 +131,7 @@
       return { conversations, totalMessages: total };
     }
 
-    // ==== Dedupe + Tags ====
+    // Dedupe + tags
     async function dedupeMessages(messages, progressCb){
       const seen=new Set(); const out=[];
       let done=0; const total=messages.length||1;
@@ -163,12 +151,11 @@
       return [ 'source:openai', `archive:${archiveName}`, `title:${title||'Conversation'}`, `range:${range}` ];
     }
 
-    // ==== File helpers ====
+    // Utils
     function download(filename, text, type='application/json'){
       const blob=new Blob([text],{type});
       const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); URL.revokeObjectURL(a.href);
     }
-
     function setProgress(pct, label){
       const clamped=Math.max(0, Math.min(100, Math.round(pct)));
       const bar=document.getElementById('progbar');
@@ -213,7 +200,7 @@
       sum.innerHTML = convs.map((c,i)=>`<div class="row"><span class="pill">${prefix}:${i+1}</span> — ${c.title} <span class="muted">(${c.messages.length} msgs)</span></div>`).join('');
     }
 
-    // ==== OUTPUTS ====
+    // Outputs
     function makeZepJSON(prepared, prefix){
       const sessions = prepared.map((c,idx)=>({
         session_id: `${prefix}:${idx+1}`,
@@ -227,7 +214,6 @@
       }));
       return JSON.stringify({ kind: 'zep.sessions', sessions }, null, 2);
     }
-
     function makeSupabaseJSON(prepared){
       const conversations = [];
       const messages = [];
@@ -282,23 +268,15 @@
       setProgress(100,'Done');
     }
 
+    // Hook up UI once DOM is ready
     window.addEventListener('DOMContentLoaded',()=>{
-      document.getElementById('zip').addEventListener('change', e=>{ /* optional: allow auto-start on change */ });
+      document.getElementById('zip').addEventListener('change', ()=>{ /* optional auto-start on change */ });
       document.getElementById('genJSON').addEventListener('click', downloadPlatformJSON);
       document.getElementById('processBtn').addEventListener('click', ()=>{
         const f=document.getElementById('zip').files?.[0];
         if(!f){ alert('Choose your OpenAI export .zip first.'); return; }
         onFileChosen(f);
       });
-      document.getElementById('prefix').addEventListener('input',()=>{ if(window.__prepared) renderSummary(window.__prepared, document.getElementById('prefix').value||'orion_master'); });
-    });
-  </script>
-</head>
-<body>
-  <header class="hero">('DOMContentLoaded',()=>{
-      document.getElementById('zip').addEventListener('change', e=>{ const f=e.target.files?.[0]; if(f) onFileChosen(f); });
-      document.getElementById('genJSON').addEventListener('click', downloadPlatformJSON);
-      document.getElementById('selftest').addEventListener('click', runSelfTests);
       document.getElementById('prefix').addEventListener('input',()=>{ if(window.__prepared) renderSummary(window.__prepared, document.getElementById('prefix').value||'orion_master'); });
     });
   </script>

@@ -1,159 +1,360 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>MindLift — by Sentinel AI Systems</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-  body {
-    background-color: #000;
-    color: #0ff;
-    font-family: 'Courier New', monospace;
-    padding: 20px;
-    text-align: center;
-  }
-  h1 {
-    color: #0ff;
-    text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
-  }
-  input, select, button {
-    background: black;
-    color: #0ff;
-    border: 2px solid #0ff;
-    padding: 10px;
-    margin: 10px;
-    border-radius: 5px;
-    text-shadow: 0 0 5px #0ff;
-  }
-  button:hover {
-    background-color: #0ff;
-    color: #000;
-    cursor: pointer;
-  }
-  #output {
-    margin-top: 20px;
-    white-space: pre-wrap;
-    text-align: left;
-    background: rgba(0,0,0,0.8);
-    padding: 10px;
-    border: 1px solid #0ff;
-  }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MindLift — OpenAI → Zep/Supabase · by Sentinel AI Systems</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net"/>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <style>
+    :root{
+      --bg:#07090f; --panel:#0b0f1a; --text:#e6e9ff; --muted:#8b93b4;
+      --neon:#00f0ff; --neon-2:#ff00e5; --accent:#14f195; --danger:#ff3b6b;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:
+        radial-gradient(1200px 800px at 80% -20%,rgba(0,240,255,0.08),transparent),
+        radial-gradient(1000px 600px at -10% 120%,rgba(255,0,229,0.06),transparent),
+        var(--bg);
+      color:var(--text);
+      font:16px/1.5 Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      overflow-y:overlay;
+    }
+    /* Subtle animated glow */
+    @keyframes glowShift { 0%{filter:hue-rotate(0deg)} 100%{filter:hue-rotate(360deg)} }
+
+    .hero{
+      padding:56px 20px 36px;
+      text-align:center;
+    }
+    .brand{
+      font-size: clamp(40px, 6vw, 72px);
+      font-weight: 900;
+      letter-spacing:.4px;
+      margin:0;
+      text-shadow: 0 0 24px rgba(0,240,255,.6), 0 0 44px rgba(255,0,229,.35);
+      animation: glowShift 14s linear infinite;
+    }
+    .tag{ color:var(--muted); margin:8px 0 0; font-size: clamp(14px, 2vw, 18px); }
+    .credit{ color:var(--muted); font-size: 13px; margin-top: 6px; }
+
+    .wrap{ max-width:1280px; margin:0 auto; padding:0 24px 40px; }
+    .grid{ display:grid; grid-template-columns: 2fr 1fr 1fr; gap:18px; }
+    @media (max-width: 980px){ .grid{ grid-template-columns:1fr; } }
+
+    .card{
+      background:linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0));
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:20px; padding:20px;
+      box-shadow: 0 0 0 1px rgba(255,255,255,.05), 0 0 24px rgba(0,240,255,.12), inset 0 0 28px rgba(255,0,229,.05);
+      backdrop-filter: blur(8px);
+    }
+
+    label{ display:block; font-size:12px; color:var(--muted); margin-bottom:8px; }
+    input[type="text"], input[type="file"], select{
+      width:100%; color:var(--text); background:var(--panel);
+      border:1px solid rgba(0,240,255,.45); border-radius:14px; padding:14px 14px;
+      outline:none; box-shadow: inset 0 0 22px rgba(0,240,255,.08);
+      font-size:15px;
+    }
+    input[type="file"]{ padding:12px; }
+
+    .btn{
+      appearance:none; border:0; cursor:pointer; padding:14px 18px; border-radius:14px;
+      font-weight:800; letter-spacing:.3px; color:#041015; font-size:15px;
+      background:linear-gradient(90deg,var(--neon),var(--neon-2));
+      box-shadow: 0 0 14px var(--neon), 0 0 32px var(--neon-2);
+      transition: transform .06s ease, box-shadow .2s ease, filter .2s ease, opacity .2s ease;
+    }
+    .btn[disabled]{ opacity:.55; cursor:not-allowed; }
+    .btn:hover{ filter: brightness(1.05); box-shadow: 0 0 18px var(--neon), 0 0 40px var(--neon-2);} 
+    .btn:active{ transform: translateY(1px); }
+    .btn.secondary{ background: transparent; color: var(--text); border:1px solid var(--neon);
+      box-shadow: inset 0 0 14px rgba(0,240,255,0.25), 0 0 24px rgba(0,240,255,0.15);} 
+
+    .muted{ color:var(--muted) }
+
+    .log{ background:#080a10; border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:14px; color:#b9c3ff;
+      overflow:auto; max-height:260px; box-shadow: inset 0 0 28px rgba(0,240,255,.06); white-space:pre-wrap }
+
+    /* Big progress bar */
+    .progress{ height:14px; background:#0e1220; border-radius:999px; overflow:hidden; border:1px solid rgba(255,255,255,.1); }
+    .progress > span{ display:block; height:100%; width:0%;
+      background:linear-gradient(90deg,var(--accent),var(--neon));
+      box-shadow: 0 0 18px var(--accent), 0 0 24px var(--neon);
+      transition: width .25s ease; }
+
+    .pill{ display:inline-block; padding:4px 10px; border:1px solid rgba(255,255,255,.15); border-radius:999px; font-size:12px; }
+  </style>
+  <script>
+    // ==== MetaMask/Web3 muzzle (sandbox guard) ====
+    (function(){
+      if (typeof window === 'undefined') return;
+      try {
+        const muzzle=(o,k)=>{ try{ if(k in o) delete o[k]; }catch(_){} try{Object.defineProperty(o,k,{configurable:true,get(){return undefined;},set(){}})}catch(_){} };
+        muzzle(window,'ethereum'); muzzle(globalThis,'ethereum'); muzzle(window,'web3');
+        window.addEventListener('ethereum#initialized', e=>e?.stopImmediatePropagation?.(), true);
+        window.addEventListener('message', (e)=>{ const s=String(e?.data?.type||e?.data||'').toLowerCase(); if(s.includes('metamask')||s.includes('ethereum')) e.stopImmediatePropagation?.(); }, true);
+        window.addEventListener('unhandledrejection', e=>{ const m=String(e?.reason||''); if(/MetaMask|Failed to connect to MetaMask/i.test(m)){ e.preventDefault?.(); console.warn('MetaMask suppressed:', m);} });
+        window.addEventListener('error', e=>{ const m=String(e?.message||''); if(/MetaMask|ethereum/i.test(m)){ e.preventDefault?.(); e.stopImmediatePropagation?.(); console.warn('MetaMask error suppressed:', m);} }, true);
+      } catch(err){ console.warn('sandboxGuard skipped:', err); }
+    })();
+
+    // ==== SHA-256 (browser) ====
+    async function sha256(str){
+      const enc=new TextEncoder();
+      const algo = (crypto?.subtle && crypto.subtle.digest) ? crypto.subtle : null;
+      if (!algo) throw new Error('WebCrypto unavailable for hashing');
+      const buf=await crypto.subtle.digest('SHA-256', enc.encode(str));
+      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+
+    // ==== Parsing helpers ====
+    function extractFromMapping(mapping){
+      const out=[]; if(!mapping||typeof mapping!=='object') return out;
+      const nodes=Object.values(mapping).sort((a,b)=>(a?.create_time||0)-(b?.create_time||0));
+      for(const n of nodes){
+        const msg=n?.message; if(!msg) continue;
+        const role=msg?.author?.role; if(role!=='user'&&role!=='assistant') continue;
+        let content='';
+        if(Array.isArray(msg?.content?.parts)) content=msg.content.parts.map(p=>typeof p==='string'?p:JSON.stringify(p)).join('\n');
+        else if(typeof msg?.content==='string') content=msg.content;
+        else if(Array.isArray(msg?.content)) content=msg.content.map(p=>p?.text??'').join('\n');
+        if(content) out.push({ role, content, created: msg.create_time || n.create_time || null });
+      }
+      return out;
+    }
+    function normalizeExport(raw){
+      const conversations=[]; let total=0; let json; try{ json=JSON.parse(raw);}catch{ throw new Error('Invalid conversations.json'); }
+      if(Array.isArray(json)){
+        for(const conv of json){
+          const title=conv.title||'Conversation'; const id=conv.id||conv.conversation_id||undefined; let messages=[];
+          if(conv.mapping) messages=extractFromMapping(conv.mapping);
+          else if(Array.isArray(conv.messages)) messages=conv.messages.map(m=>({ role:m.role||'user', content:m.content||'', created:m.create_time||null })).filter(m=>m.content);
+          if(messages.length){ total+=messages.length; conversations.push({ id,title,messages }); }
+        }
+      } else if(Array.isArray(json.messages)) {
+        const messages=json.messages.map(m=>({ role:m.role||'user', content:m.content||'', created:m.create_time||null })).filter(m=>m.content);
+        conversations.push({ id:undefined, title:'Conversation', messages }); total=messages.length;
+      } else { throw new Error('Unsupported conversations.json structure'); }
+      return { conversations, totalMessages: total };
+    }
+
+    // ==== Dedupe + Tags ====
+    async function dedupeMessages(messages, progressCb){
+      const seen=new Set(); const out=[];
+      let done=0; const total=messages.length||1;
+      for(const m of messages){
+        const key=await sha256(`${m.role}|${m.content}`);
+        if(!seen.has(key)) { seen.add(key); out.push(m); }
+        done++; progressCb && progressCb(done/total);
+      }
+      return out;
+    }
+    function buildTags({archiveName,title,messages}){
+      const times=messages.map(m=>m.created).filter(Boolean);
+      const min=times.length? new Date(Math.min(...times)*1000):null;
+      const max=times.length? new Date(Math.max(...times)*1000):null;
+      const fmt=d=>d? d.toISOString().slice(0,10):'unknown';
+      const range=`${fmt(min)}..${fmt(max)}`;
+      return [ 'source:openai', `archive:${archiveName}`, `title:${title||'Conversation'}`, `range:${range}` ];
+    }
+
+    // ==== File helpers ====
+    function download(filename, text, type='application/json'){
+      const blob=new Blob([text],{type});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); URL.revokeObjectURL(a.href);
+    }
+
+    function setProgress(pct, label){
+      const clamped=Math.max(0, Math.min(100, Math.round(pct)));
+      const bar=document.getElementById('progbar');
+      const txt=document.getElementById('progtext');
+      bar.style.width = clamped + '%';
+      txt.textContent = `${clamped}% — ${label||''}`;
+    }
+
+    async function handleZip(file){
+      const log=(msg)=>{ const el=document.getElementById('log'); el.textContent += (el.textContent?"\n":"")+msg; el.scrollTop=el.scrollHeight; };
+      setProgress(5,'File selected');
+      log(`Reading ${file.name} …`);
+      const buf=await file.arrayBuffer();
+      setProgress(15,'Loading zip');
+      const zip=await JSZip.loadAsync(buf);
+      setProgress(40,'Scanning archive');
+      const entry=Object.values(zip.files).find(f=>/conversations\.json$/i.test(f.name));
+      if(!entry) throw new Error('conversations.json not found in archive');
+      const raw=await entry.async('string');
+      setProgress(55,'Parsing JSON');
+      const { conversations, totalMessages } = normalizeExport(raw);
+      log(`Parsed ${conversations.length} conversations, ${totalMessages} messages.`);
+      return { conversations, totalMessages };
+    }
+
+    async function prepare(conversations, archiveName){
+      const prepared=[]; let dedupTotal=0; const N=conversations.length||1;
+      for(let i=0;i<conversations.length;i++){
+        const c=conversations[i];
+        setProgress(60 + Math.round((i/N)*20), `Deduplicating (${i+1}/${N})`);
+        const deduped = await dedupeMessages(c.messages, r=>setProgress(60 + Math.round((i/N + r/N)*20), `Deduplicating (${i+1}/${N})`));
+        const tags = buildTags({ archiveName, title:c.title, messages: deduped });
+        prepared.push({ index:i, id:c.id, title:c.title, messages:deduped, tags });
+        dedupTotal += deduped.length;
+      }
+      setProgress(85,'Finalizing');
+      return { prepared, dedupTotal };
+    }
+
+    function renderSummary(convs, prefix){
+      const sum=document.getElementById('summary');
+      sum.innerHTML = convs.map((c,i)=>`<div class="row"><span class="pill">${prefix}:${i+1}</span> — ${c.title} <span class="muted">(${c.messages.length} msgs)</span></div>`).join('');
+    }
+
+    // ==== OUTPUTS ====
+    function makeZepJSON(prepared, prefix){
+      const sessions = prepared.map((c,idx)=>({
+        session_id: `${prefix}:${idx+1}`,
+        title: c.title,
+        tags: c.tags,
+        messages: c.messages.map(m=>({
+          role: m.role==='assistant'?'assistant':'user',
+          content: String(m.content),
+          metadata: { ...(m.created?{created:m.created}:{}) , title:c.title , tags:c.tags }
+        }))
+      }));
+      return JSON.stringify({ kind: 'zep.sessions', sessions }, null, 2);
+    }
+
+    function makeSupabaseJSON(prepared){
+      const conversations = [];
+      const messages = [];
+      prepared.forEach((c,idx)=>{
+        conversations.push({ external_id: c.id || null, title: c.title || null, tags: c.tags, index: idx });
+        c.messages.forEach(m=>{
+          messages.push({
+            conversation_index: idx,
+            role: m.role==='assistant'?'assistant':'user',
+            content: String(m.content),
+            tags: c.tags,
+            created_at: m.created ? new Date(m.created*1000).toISOString() : null,
+          });
+        });
+      });
+      return JSON.stringify({ kind: 'supabase.bulk', conversations, messages }, null, 2);
+    }
+
+    async function onFileChosen(file){
+      const logEl=document.getElementById('log'); logEl.textContent='';
+      const archiveName=file.name.replace(/\s+/g,'_');
+      try{
+        document.getElementById('genJSON').disabled = true;
+        setProgress(0,'Waiting');
+        const { conversations } = await handleZip(file);
+        const { prepared, dedupTotal } = await prepare(conversations, archiveName);
+        renderSummary(prepared, document.getElementById('prefix').value || 'orion_master');
+        document.getElementById('stats').textContent = `${prepared.length} conversations • ${dedupTotal} messages after dedupe`;
+        window.__prepared = prepared; window.__archiveName = archiveName;
+        document.getElementById('downloads').style.display='block';
+        setProgress(90,'Ready to export');
+        document.getElementById('genJSON').disabled = false;
+      }catch(e){
+        setProgress(0,'');
+        logEl.textContent += (logEl.textContent?"\n":"")+`❌ ${e.message||e}`;
+      }
+    }
+
+    function downloadPlatformJSON(){
+      const prepared=window.__prepared||[];
+      const target = (document.getElementById('target')?.value || 'zep');
+      if(!prepared.length){ alert('Upload a zip first.'); return; }
+      setProgress(95,'Generating payload');
+      if(target==='zep'){
+        const prefix=document.getElementById('prefix').value||'orion_master';
+        const json = makeZepJSON(prepared, prefix);
+        download(`zep_payload_${prefix}.json`, json);
+      } else {
+        const json = makeSupabaseJSON(prepared);
+        download('supabase_payload.json', json);
+      }
+      setProgress(100,'Done');
+    }
+
+    // Self tests
+    function runSelfTests(){
+      const out=[]; const pass=n=>out.push('✅ '+n); const fail=(n,e)=>out.push('❌ '+n+' — '+(e?.message||e));
+      try{ const raw=JSON.stringify([{title:'t1',messages:[{role:'user',content:'hi'},{role:'assistant',content:'yo'}]},{title:'t2',messages:[{role:'user',content:'x'}]}]); const r=normalizeExport(raw); if(r.conversations.length===2&&r.totalMessages===3) pass('array shape parses'); else throw Error('counts'); }catch(e){ fail('array shape parses',e);} 
+      try{ const raw=JSON.stringify([{title:'map1',mapping:{a:{id:'a',create_time:1,message:{author:{role:'user'},content:{parts:['U1']},create_time:1}},b:{id:'b',create_time:2,message:{author:{role:'assistant'},content:{parts:['A1']},create_time:2}}}}]); const r=normalizeExport(raw); if(r.conversations.length===1&&r.totalMessages===2) pass('mapping shape parses'); else throw Error('counts'); }catch(e){ fail('mapping shape parses',e);} 
+      try{ let threw=false; try{ normalizeExport('{not json}'); }catch(_){ threw=true; } if(threw) pass('invalid JSON rejected'); else throw Error('no throw'); }catch(e){ fail('invalid JSON rejected',e);} 
+      (async()=>{ try{ const msgs=[{role:'user',content:'a'},{role:'assistant',content:'b'},{role:'user',content:'a'}]; const d=await dedupeMessages(msgs); if(d.length===2) pass('dedupe role+content'); else throw Error('len'); }catch(e){ fail('dedupe role+content',e);} 
+        // Zep JSON export shape
+        try{ const demoPrep=[{title:'t',tags:['k:1'],messages:[{role:'user',content:'x'}]}]; const j=makeZepJSON(demoPrep,'pfx'); const obj=JSON.parse(j); if(Array.isArray(obj.sessions)&&obj.sessions[0].session_id==='pfx:1'&&obj.kind==='zep.sessions') pass('zep json shape'); else throw Error('bad shape'); }catch(e){ fail('zep json shape',e);} 
+        // Supabase JSON export shape
+        try{ const demoPrep=[{title:'t',tags:['k:1'],messages:[{role:'user',content:'x',created:1000}]}]; const j=makeSupabaseJSON(demoPrep); const obj=JSON.parse(j); if(Array.isArray(obj.conversations)&&Array.isArray(obj.messages)&&obj.kind==='supabase.bulk') pass('supabase json shape'); else throw Error('bad shape'); }catch(e){ fail('supabase json shape',e);} 
+        const log=document.getElementById('log'); log.textContent = out.join('\n'); })();
+    }
+
+    window.addEventListener('DOMContentLoaded',()=>{
+      document.getElementById('zip').addEventListener('change', e=>{ const f=e.target.files?.[0]; if(f) onFileChosen(f); });
+      document.getElementById('genJSON').addEventListener('click', downloadPlatformJSON);
+      document.getElementById('selftest').addEventListener('click', runSelfTests);
+      document.getElementById('prefix').addEventListener('input',()=>{ if(window.__prepared) renderSummary(window.__prepared, document.getElementById('prefix').value||'orion_master'); });
+    });
+  </script>
 </head>
 <body>
-<h1>MindLift</h1>
-<p><em>by Sentinel AI Systems</em></p>
-<p>Lift your AI’s memory into the cloud.</p>
+  <header class="hero">
+    <h1 class="brand">MindLift</h1>
+    <p class="tag">Lift your AI’s memory into the cloud</p>
+    <p class="credit">by Sentinel AI Systems</p>
+  </header>
 
-<label>Select Target Platform:</label>
-<select id="target">
-  <option value="zep">Zep</option>
-  <option value="supabase">Supabase</option>
-</select><br>
+  <main class="wrap">
+    <div class="grid">
+      <section class="card">
+        <label>OpenAI export (.zip)</label>
+        <input id="zip" type="file" accept="application/zip,.zip" />
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px">
+          <div>
+            <label>Session Prefix</label>
+            <input id="prefix" type="text" value="orion_master" />
+          </div>
+          <div>
+            <label>Target</label>
+            <select id="target">
+              <option value="zep" selected>Zep (single JSON payload)</option>
+              <option value="supabase">Supabase (single JSON payload)</option>
+            </select>
+          </div>
+        </div>
+        <p class="muted" style="margin-top:10px">We parse <code>conversations.json</code>, dedupe, tag, and serialize to a <strong>single JSON file</strong> for the chosen platform.</p>
+        <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap">
+          <button id="genJSON" class="btn" title="Download platform JSON payload" disabled>Download JSON</button>
+          <button id="selftest" class="btn secondary" title="Run in‑page tests">Run Self Tests</button>
+        </div>
+      </section>
 
-<input type="file" id="fileInput" accept=".zip"><br>
-<button onclick="processZip()">Process Export</button>
+      <section class="card">
+        <div class="muted">Status</div>
+        <div id="stats" style="margin-top:8px">—</div>
+        <div class="muted" style="margin-top:10px; margin-bottom:8px">Progress</div>
+        <div class="progress" aria-hidden="true"><span id="progbar"></span></div>
+        <div id="progtext" class="muted" style="margin-top:8px; font-size:12px">0% — Waiting</div>
+      </section>
 
-<div id="output"></div>
+      <section class="card">
+        <div class="muted">Prepared Sessions</div>
+        <div id="summary" style="margin-top:8px; max-height:240px; overflow:auto"></div>
+      </section>
+    </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script>
-(function guardWallets(){
-  window.ethereum = undefined;
-  window.web3 = undefined;
-  window.addEventListener('unhandledrejection', e => {
-    if(e.reason && e.reason.message && e.reason.message.includes('MetaMask')){
-      e.preventDefault();
-    }
-  });
-  window.addEventListener('error', e => {
-    if(e.message && e.message.includes('MetaMask')){
-      e.preventDefault();
-    }
-  });
-})();
-
-function sha256(str) {
-  const buf = new TextEncoder().encode(str);
-  return crypto.subtle.digest('SHA-256', buf).then(hash => {
-    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
-  });
-}
-
-async function processZip() {
-  const fileInput = document.getElementById('fileInput');
-  const output = document.getElementById('output');
-  const target = document.getElementById('target').value;
-  if (!fileInput.files.length) {
-    output.textContent = 'Please select a zip file.';
-    return;
-  }
-  output.textContent = 'Processing...';
-  const zip = new JSZip();
-  const content = await zip.loadAsync(fileInput.files[0]);
-  const convFile = content.file('conversations.json');
-  if (!convFile) {
-    output.textContent = 'conversations.json not found in zip.';
-    return;
-  }
-  const convText = await convFile.async('string');
-  let conversations = JSON.parse(convText);
-
-  // Deduplicate messages
-  const seen = new Set();
-  for (const conv of conversations) {
-    conv.messages = await Promise.all(conv.messages.map(async msg => {
-      const hash = await sha256(msg.role + msg.content);
-      if (seen.has(hash)) return null;
-      seen.add(hash);
-      return msg;
-    }));
-    conv.messages = conv.messages.filter(Boolean);
-  }
-
-  // Build output format
-  let finalData;
-  if (target === 'zep') {
-    finalData = {
-      kind: 'zep.sessions',
-      sessions: conversations.map(c => ({
-        id: c.id || undefined,
-        title: c.title || (c.messages[0] ? c.messages[0].content.slice(0,40) : 'Conversation'),
-        messages: c.messages.map(m => ({
-          role: m.role,
-          content: m.content,
-          metadata: { tags: ['openai-export'] }
-        }))
-      }))
-    };
-  } else {
-    finalData = {
-      kind: 'supabase.bulk',
-      conversations: conversations.map(c => ({
-        id: c.id || undefined,
-        title: c.title || (c.messages[0] ? c.messages[0].content.slice(0,40) : 'Conversation')
-      })),
-      messages: conversations.flatMap(c =>
-        c.messages.map(m => ({
-          conversation_id: c.id || undefined,
-          role: m.role,
-          content: m.content,
-          tags: ['openai-export']
-        }))
-      )
-    };
-  }
-
-  // Download result
-  const blob = new Blob([JSON.stringify(finalData, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${target}_payload.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  output.textContent = `Done! Downloaded ${target}_payload.json`;
-}
-</script>
+    <section class="card" style="margin-top:18px">
+      <div class="muted">Log</div>
+      <pre id="log" class="log" style="margin-top:8px"></pre>
+      <div id="downloads" style="display:none" class="muted">Artifacts ready: <code>zep_payload_*</code> or <code>supabase_payload.json</code>.</div>
+    </section>
+  </main>
 </body>
 </html>

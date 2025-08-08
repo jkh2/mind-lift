@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MindLift — by Sentinel AI Systems</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body {
+    background-color: #000;
+    color: #0ff;
+    font-family: 'Courier New', monospace;
+    padding: 20px;
+    text-align: center;
+  }
+  h1 {
+    color: #0ff;
+    text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
+  }
+  input, select, button {
+    background: black;
+    color: #0ff;
+    border: 2px solid #0ff;
+    padding: 10px;
+    margin: 10px;
+    border-radius: 5px;
+    text-shadow: 0 0 5px #0ff;
+  }
+  button:hover {
+    background-color: #0ff;
+    color: #000;
+    cursor: pointer;
+  }
+  #output {
+    margin-top: 20px;
+    white-space: pre-wrap;
+    text-align: left;
+    background: rgba(0,0,0,0.8);
+    padding: 10px;
+    border: 1px solid #0ff;
+  }
+</style>
+</head>
+<body>
+<h1>MindLift</h1>
+<p><em>by Sentinel AI Systems</em></p>
+<p>Lift your AI’s memory into the cloud.</p>
+
+<label>Select Target Platform:</label>
+<select id="target">
+  <option value="zep">Zep</option>
+  <option value="supabase">Supabase</option>
+</select><br>
+
+<input type="file" id="fileInput" accept=".zip"><br>
+<button onclick="processZip()">Process Export</button>
+
+<div id="output"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+(function guardWallets(){
+  window.ethereum = undefined;
+  window.web3 = undefined;
+  window.addEventListener('unhandledrejection', e => {
+    if(e.reason && e.reason.message && e.reason.message.includes('MetaMask')){
+      e.preventDefault();
+    }
+  });
+  window.addEventListener('error', e => {
+    if(e.message && e.message.includes('MetaMask')){
+      e.preventDefault();
+    }
+  });
+})();
+
+function sha256(str) {
+  const buf = new TextEncoder().encode(str);
+  return crypto.subtle.digest('SHA-256', buf).then(hash => {
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+  });
+}
+
+async function processZip() {
+  const fileInput = document.getElementById('fileInput');
+  const output = document.getElementById('output');
+  const target = document.getElementById('target').value;
+  if (!fileInput.files.length) {
+    output.textContent = 'Please select a zip file.';
+    return;
+  }
+  output.textContent = 'Processing...';
+  const zip = new JSZip();
+  const content = await zip.loadAsync(fileInput.files[0]);
+  const convFile = content.file('conversations.json');
+  if (!convFile) {
+    output.textContent = 'conversations.json not found in zip.';
+    return;
+  }
+  const convText = await convFile.async('string');
+  let conversations = JSON.parse(convText);
+
+  // Deduplicate messages
+  const seen = new Set();
+  for (const conv of conversations) {
+    conv.messages = await Promise.all(conv.messages.map(async msg => {
+      const hash = await sha256(msg.role + msg.content);
+      if (seen.has(hash)) return null;
+      seen.add(hash);
+      return msg;
+    }));
+    conv.messages = conv.messages.filter(Boolean);
+  }
+
+  // Build output format
+  let finalData;
+  if (target === 'zep') {
+    finalData = {
+      kind: 'zep.sessions',
+      sessions: conversations.map(c => ({
+        id: c.id || undefined,
+        title: c.title || (c.messages[0] ? c.messages[0].content.slice(0,40) : 'Conversation'),
+        messages: c.messages.map(m => ({
+          role: m.role,
+          content: m.content,
+          metadata: { tags: ['openai-export'] }
+        }))
+      }))
+    };
+  } else {
+    finalData = {
+      kind: 'supabase.bulk',
+      conversations: conversations.map(c => ({
+        id: c.id || undefined,
+        title: c.title || (c.messages[0] ? c.messages[0].content.slice(0,40) : 'Conversation')
+      })),
+      messages: conversations.flatMap(c =>
+        c.messages.map(m => ({
+          conversation_id: c.id || undefined,
+          role: m.role,
+          content: m.content,
+          tags: ['openai-export']
+        }))
+      )
+    };
+  }
+
+  // Download result
+  const blob = new Blob([JSON.stringify(finalData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${target}_payload.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  output.textContent = `Done! Downloaded ${target}_payload.json`;
+}
+</script>
+</body>
+</html>

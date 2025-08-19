@@ -3,7 +3,7 @@
 **Lift your AI's memory into the cloud.**  
 MindLift is a simple, browser-based tool that transforms your OpenAI ChatGPT export into a clean, deduplicated JSON file, ready for upload to either **Zep** or **Supabase**.
 
-![MindLift Screenshot](screenshot.png) <!-- Optional: Add screenshot file in repo -->
+![MindLift Screenshot](mindlift.jpg) <!-- Optional: Add screenshot file in repo -->
 
 ---
 

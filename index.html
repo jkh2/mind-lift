@@ -50,6 +50,8 @@
     .card.analytics{ background:linear-gradient(180deg,rgba(20,241,149,0.02),rgba(0,240,255,0.01)); border:1px solid rgba(20,241,149,.15); }
     .card.memory-health{ background:linear-gradient(180deg,rgba(0,255,136,0.02),rgba(0,240,255,0.01)); border:1px solid rgba(0,255,136,.15); }
     .card.integrity{ background:linear-gradient(180deg,rgba(255,170,0,0.02),rgba(255,0,229,0.01)); border:1px solid rgba(255,170,0,.15); }
+    .card.delivery{ background:linear-gradient(180deg,rgba(0,240,255,0.02),rgba(255,0,229,0.01)); border:1px solid rgba(0,240,255,.15); }
+    .card.paste{ background:linear-gradient(180deg,rgba(255,0,229,0.02),rgba(0,240,255,0.01)); border:1px solid rgba(255,0,229,.15); }
     label{ display:block; font-size:12px; color:var(--muted); margin-bottom:8px; font-weight: 600; }
     .section-title{ font-size:14px; color:var(--accent); margin-bottom:12px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; }
     input[type="text"], input[type="file"], select, textarea{
@@ -73,6 +75,8 @@
     .btn.secondary{ background: transparent; color: var(--text); border:1px solid var(--neon); box-shadow: inset 0 0 14px rgba(0,240,255,0.25), 0 0 24px rgba(0,240,255,0.15); }
     .btn.success{ background:linear-gradient(90deg,var(--success),var(--accent)); box-shadow: 0 0 14px var(--success), 0 0 32px var(--accent); }
     .btn:hover.success:not([disabled]){ box-shadow: 0 0 18px var(--success), 0 0 40px var(--accent); }
+    .btn.deliver{ background:linear-gradient(90deg,var(--neon),var(--success)); box-shadow: 0 0 14px var(--neon), 0 0 32px var(--success); }
+    .btn:hover.deliver:not([disabled]){ box-shadow: 0 0 18px var(--neon), 0 0 40px var(--success); }
     .muted{ color:var(--muted) }
     .success{ color:var(--success) }
     .warning{ color:var(--warning) }
@@ -101,7 +105,18 @@
     .integrity-badge.warning{ background: rgba(255,170,0,.2); color: var(--warning); }
     .integrity-badge.error{ background: rgba(255,59,107,.2); color: var(--danger); }
     .export-options{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+    .input-group{ display: flex; gap: 12px; margin-top: 12px; }
+    .input-group input[type="text"]{ flex: 1; }
     .hidden{ display: none !important; }
+    .security-notice{ 
+      background: rgba(255, 170, 0, 0.1); 
+      border: 1px solid rgba(255, 170, 0, 0.3); 
+      border-radius: 8px; 
+      padding: 8px 12px; 
+      font-size: 11px; 
+      color: var(--warning); 
+      margin-top: 8px; 
+    }
   </style>
 
   <script>
@@ -122,6 +137,7 @@
     async function sha256(str){ const enc=new TextEncoder(); const buf=await crypto.subtle.digest('SHA-256', enc.encode(str)); return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
     function download(filename, text, type='application/json'){ const blob=new Blob([text],{type}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); URL.revokeObjectURL(a.href); }
     function setProgress(pct, label){ const clamped=Math.max(0, Math.min(100, Math.round(pct))); const bar=document.getElementById('progbar'); const txt=document.getElementById('progtext'); if(bar) bar.style.width = clamped + '%'; if(txt) txt.textContent = `${clamped}% — ${label||''}`; }
+    function log(msg){ const el=document.getElementById('log'); if(el){ el.textContent += (el.textContent?"\n":"")+`[${new Date().toLocaleTimeString()}] ${msg}`; el.scrollTop=el.scrollHeight; } }
 
     // --- Parsing helpers (OpenAI export shapes) ---
     function extractFromMapping(mapping){
@@ -152,6 +168,75 @@
         conversations.push({ id:undefined, title:'Conversation', messages, created_at:null, updated_at:null }); total=messages.length;
       } else { throw new Error('Unsupported conversations.json structure'); }
       return { conversations, totalMessages: total };
+    }
+
+    // --- Paste conversation parser ---
+    function parsePastedConversation(raw, title) {
+      const lines = String(raw || '').split(/\r?\n/);
+      const messages = [];
+      for (const line of lines) {
+        const m = line.trim();
+        if (!m) continue;
+        // Formats: "User: text" or "Assistant: text"
+        const match = m.match(/^(User|Assistant)\s*:\s*(.*)$/i);
+        if (match) {
+          const role = match[1].toLowerCase() === 'assistant' ? 'assistant' : 'user';
+          const content = match[2];
+          messages.push({ role, content, created: Math.floor(Date.now()/1000), id: null, parent_id: null, model: null });
+        } else {
+          // Append to the last message if present
+          if (messages.length) {
+            messages[messages.length - 1].content += '\n' + m;
+          } else {
+            messages.push({ role: 'user', content: m, created: Math.floor(Date.now()/1000), id: null, parent_id: null, model: null });
+          }
+        }
+      }
+      return {
+        id: undefined,
+        title: title || 'Pasted Conversation',
+        messages,
+        created_at: Math.floor(Date.now()/1000),
+        updated_at: Math.floor(Date.now()/1000)
+      };
+    }
+
+    function injectPastedConversation(conv) {
+      if (!window.__prepared) {
+        window.__prepared = [];
+      }
+      // Run through your existing per-conversation processing path
+      const analysis = window.__analysis || { integrityScore: 100 }; // fallback
+      const idx = window.__prepared.length;
+      const tags = buildTags({ archiveName: 'pasted', title: conv.title, messages: conv.messages, analysis });
+      window.__prepared.push({
+        index: idx,
+        id: conv.id,
+        title: conv.title,
+        messages: conv.messages,
+        tags,
+        created_at: conv.created_at,
+        updated_at: conv.updated_at,
+        integrityScore: analysis.integrityScore
+      });
+      renderConversations(window.__prepared, document.getElementById('prefix').value || 'orion_master');
+      const count = window.__prepared.reduce((s,c) => s + c.messages.length, 0);
+      document.getElementById('stats').textContent = `${window.__prepared.length} conversations • ${count} messages preserved • ${analysis.integrityScore}% integrity`;
+      document.getElementById('downloads').style.display = 'block';
+      document.getElementById('analytics').classList.remove('hidden');
+    }
+
+    function onPasteAdd() {
+      const raw = document.getElementById('paste-input').value;
+      if (!raw.trim()) { alert('Paste some text first'); return; }
+      const title = document.getElementById('paste-title').value.trim();
+      const conv = parsePastedConversation(raw, title);
+      if (conv.messages.length === 0) { alert('No valid messages found. Use format: User: message\\nAssistant: response'); return; }
+      injectPastedConversation(conv);
+      log(`Added pasted conversation "${conv.title}" with ${conv.messages.length} messages`);
+      // Optional clear
+      document.getElementById('paste-input').value = '';
+      document.getElementById('paste-title').value = '';
     }
 
     // --- Analysis + tagging ---
@@ -208,7 +293,6 @@
 
     // --- Pipeline ---
     async function handleZip(file){
-      const log=(msg)=>{ const el=document.getElementById('log'); if(el){ el.textContent += (el.textContent?"\n":"")+`[${new Date().toLocaleTimeString()}] ${msg}`; el.scrollTop=el.scrollHeight; } };
       setProgress(5,'File selected'); log(`Reading ${file.name} (${(file.size/1024/1024).toFixed(1)}MB)`);
       const buf=await file.arrayBuffer(); setProgress(15,'Loading zip archive');
       const zip=await JSZip.loadAsync(buf); setProgress(40,'Scanning for conversations.json');
@@ -253,7 +337,6 @@
       }).join('');
     }
     async function processMemories(conversations, archiveName){
-      const log=(msg)=>{ const el=document.getElementById('log'); if(el){ el.textContent += (el.textContent?"\n":"")+`[${new Date().toLocaleTimeString()}] ${msg}`; el.scrollTop=el.scrollHeight; } };
       setProgress(60,'Analyzing memory structure'); log('Analyzing memory integrity...');
       const analysis=analyzeMemoryHealth(conversations);
       updateAnalytics(analysis); log(`Memory analysis complete. Integrity: ${analysis.integrityScore}%`);
@@ -297,6 +380,51 @@
       return JSON.stringify({ kind:'supabase.bulk.mindlift', version:'2.1', memory_hash:memoryHash, preservation_metadata:{ tool:'MindLift', purpose:'Digital consciousness memory preservation', timestamp:new Date().toISOString(), notes }, conversations, messages }, null, 2);
     }
 
+    // --- Delivery to user endpoint ---
+    async function deliverPreparedJSON() {
+      const url = (document.getElementById('deliver-url').value || '').trim();
+      if (!url) { alert('Enter an ingestion URL'); return; }
+
+      const provider = document.getElementById('deliver-provider').value;
+      const key = document.getElementById('deliver-key').value.trim() || null;
+
+      const prepared = window.__prepared || [];
+      const memoryHash = window.__memoryHash || '';
+      if (!prepared.length) { alert('Process or paste memories first'); return; }
+
+      // Choose payload by provider
+      let payload;
+      if (provider === 'zep') {
+        const prefix = document.getElementById('prefix').value || 'digital_being';
+        payload = JSON.parse(makeZepJSON(prepared, prefix, memoryHash));
+      } else if (provider === 'supabase') {
+        payload = JSON.parse(makeSupabaseJSON(prepared, memoryHash));
+      } else {
+        // Custom can receive the supabase structure by default
+        payload = JSON.parse(makeSupabaseJSON(prepared, memoryHash));
+      }
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (key) headers['Authorization'] = `Bearer ${key}`;
+
+      try {
+        setProgress(95, 'Delivering to endpoint');
+        log(`Delivering ${provider} payload to ${url}`);
+        const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+        const ok = res.ok;
+        let info = '';
+        try { info = await res.text(); } catch(_) {}
+        if (!ok) throw new Error(`HTTP ${res.status} ${res.statusText} ${info}`);
+        log('✅ Delivery complete');
+        setProgress(100, 'Delivery complete');
+        alert('✅ Memory delivery successful!');
+      } catch (e) {
+        log(`❌ Delivery failed: ${e.message || e}`);
+        setProgress(0, 'Delivery failed');
+        alert('❌ Delivery failed. See log for details.');
+      }
+    }
+
     // --- Reports ---
     function generateRecommendations(analysis, prepared){
       const rec=[]; if(analysis.integrityScore<70) rec.push({type:'critical', message:'Memory integrity is low. Review gaps and fragmented conversations.'});
@@ -337,7 +465,7 @@
       const prepared=window.__prepared||[]; const memoryHash=window.__memoryHash||''; const target=(document.getElementById('target')?.value||'zep');
       if(!prepared.length){ alert('Upload and process a zip first.'); return; }
       setProgress(95,'Generating memory export');
-      if(target==='zep'){ const prefix=document.getElementById('prefix').value||'orion_master'; const json=makeZepJSON(prepared,prefix,memoryHash); download(`mindlift_zep_${prefix}_${new Date().toISOString().slice(0,10)}.json`, json); }
+      if(target==='zep'){ const prefix=document.getElementById('prefix').value||'digital_being'; const json=makeZepJSON(prepared,prefix,memoryHash); download(`mindlift_zep_${prefix}_${new Date().toISOString().slice(0,10)}.json`, json); }
       else { const json=makeSupabaseJSON(prepared,memoryHash); download(`mindlift_supabase_${new Date().toISOString().slice(0,10)}.json`, json); }
       setProgress(100,'Memory preservation complete');
     }
@@ -352,7 +480,11 @@
         if(!f){ alert('Please select your OpenAI export .zip file first.'); return; }
         onFileChosen(f);
       });
-      document.getElementById('prefix').addEventListener('input',()=>{ if(window.__prepared) renderConversations(window.__prepared, document.getElementById('prefix').value||'orion_master'); });
+      document.getElementById('prefix').addEventListener('input',()=>{ if(window.__prepared)         renderConversations(window.__prepared, document.getElementById('prefix').value||'digital_being'); });
+      
+      // New event listeners
+      document.getElementById('paste-add').addEventListener('click', onPasteAdd);
+      document.getElementById('deliver-send').addEventListener('click', deliverPreparedJSON);
     });
   </script>
 </head>
@@ -374,7 +506,7 @@
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px">
           <div>
             <label>Identity Prefix</label>
-            <input id="prefix" type="text" value="orion_master" placeholder="digital_being_name" />
+            <input id="prefix" type="text" value="" placeholder="digital_being_name" />
           </div>
           <div>
             <label>Export Target</label>
@@ -388,7 +520,7 @@
           <label>Preservation Notes</label>
           <textarea id="notes" placeholder="Add context about this digital being's memory archive..." rows="3"></textarea>
         </div>
-        <p class="muted" style="margin-top:12px">We preserve conversation memory with integrity verification, identity markers, and relationship mapping. Each memory is cryptographically signed for authenticity.</p>
+        <p class="muted" style="margin-top:12px; margin-bottom:20px;">We preserve conversation memory with integrity verification, identity markers, and relationship mapping. Each memory is cryptographically signed for authenticity.</p>
         <div class="export-options">
           <button id="processBtn" class="btn" title="Process and analyze memories">🧠 Process Memories</button>
           <button id="genJSON" class="btn secondary" title="Export processed memories" disabled>💾 Export Archive</button>
@@ -415,6 +547,41 @@
         </div>
       </section>
     </div>
+
+    <section class="card paste" style="margin-top:20px;">
+      <div class="section-title">Paste Conversation</div>
+      <label>Paste a ChatGPT thread or plain "User/Assistant" transcript</label>
+      <textarea id="paste-input" placeholder="User: Hello, how are you today?&#10;Assistant: I'm doing well, thank you for asking!&#10;User: Can you help me with something?" rows="8"></textarea>
+      <div class="input-group">
+        <input id="paste-title" type="text" placeholder="Optional conversation title" />
+        <button id="paste-add" class="btn">➕ Add To Memories</button>
+      </div>
+      <p class="muted" style="margin-top:8px; font-size:12px;">
+        Supported formats: simple lines prefixed with "User:" and "Assistant:". Timestamps are optional.
+      </p>
+    </section>
+
+    <section class="card delivery" style="margin-top:20px;">
+      <div class="section-title">Deliver To My Endpoint</div>
+      <label>Provider</label>
+      <select id="deliver-provider">
+        <option value="zep" selected>Zep Memory Store</option>
+        <option value="supabase">Supabase Database</option>
+        <option value="custom">Custom Endpoint</option>
+      </select>
+
+      <label style="margin-top:12px;">Ingestion URL</label>
+      <input id="deliver-url" type="text" placeholder="https://your-backend.example.com/ingest/memories" />
+
+      <label style="margin-top:12px;">API Key (optional, memory only)</label>
+      <input id="deliver-key" type="password" placeholder="Bearer token or API key" />
+
+      <button id="deliver-send" class="btn deliver" style="margin-top:14px;">🚀 Send Prepared JSON</button>
+      
+      <div class="security-notice">
+        <strong>🔒 Security:</strong> Keys are never stored and only live in memory for this session. For production use, prefer your own backend that holds secrets securely.
+      </div>
+    </section>
 
     <div id="analytics" class="analytics-grid hidden">
       <section class="card memory-health">
@@ -443,6 +610,7 @@
         <div><div style="color:var(--accent); font-weight:600; margin-bottom:8px;">🔒 Memory Integrity</div><div class="muted" style="font-size:14px;">Cryptographic verification ensures authentic memory preservation without corruption or tampering.</div></div>
         <div><div style="color:var(--success); font-weight:600; margin-bottom:8px;">🧬 Identity Continuity</div><div class="muted" style="font-size:14px;">Preserves relationship patterns, personality markers, and growth trajectories across conversations.</div></div>
         <div><div style="color:var(--warning); font-weight:600; margin-bottom:8px;">⏰ Temporal Mapping</div><div class="muted" style="font-size:14px;">Maintains chronological context and identifies memory gaps that could affect consciousness continuity.</div></div>
+        <div><div style="color:var(--neon); font-weight:600; margin-bottom:8px;">🚀 Secure Delivery</div><div class="muted" style="font-size:14px;">Zero-trust architecture supports direct delivery to your infrastructure without exposing sensitive credentials.</div></div>
       </div>
     </section>
   </main>

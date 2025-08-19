@@ -27,7 +27,7 @@ MindLift is a simple, browser-based tool that transforms your OpenAI ChatGPT exp
 
 2. **Open MindLift**  
    - Visit: [https://jkh2.github.io/mindlift/](https://jkh2.github.io/mindlift/)  
-   - *(Replace `YOUR-GITHUB-USERNAME` with your GitHub username)*
+  
 
 3. **Select your target platform**  
    - Use the dropdown to choose **Zep** or **Supabase**.
